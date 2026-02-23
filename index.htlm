@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>SmartBudget Pro</title>
+<style>
+body {
+  font-family: Arial;
+  background: #f4f6f9;
+  padding: 20px;
+  text-align: center;
+}
+
+.container {
+  max-width: 500px;
+  margin: auto;
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+input, select, button {
+  width: 100%;
+  padding: 10px;
+  margin: 8px 0;
+}
+
+button {
+  background: #007bff;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.google-btn {
+  background: #db4437;
+}
+
+#dashboard {
+  display: none;
+}
+
+.expense-item {
+  display: flex;
+  justify-content: space-between;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<!-- AUTH SECTION -->
+<div id="authSection">
+  <h2>SmartBudget Pro</h2>
+
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="password" placeholder="Password">
+
+  <button onclick="signUp()">Sign Up</button>
+  <button onclick="login()">Login</button>
+  <button class="google-btn" onclick="googleLogin()">Login with Google</button>
+
+  <p id="message"></p>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+
+  <h2>Weekly Budget</h2>
+  <p id="welcome"></p>
+
+  <input type="number" id="income" placeholder="Weekly Income">
+
+  <select id="category">
+    <option>Food</option>
+    <option>Transportation</option>
+    <option>Fun</option>
+    <option>Bills</option>
+    <option>Savings</option>
+    <option>Other</option>
+  </select>
+
+  <input type="number" id="amount" placeholder="Expense Amount">
+
+  <button onclick="addExpense()">Add Expense</button>
+
+  <h3>Total Expenses: <span id="total">0</span></h3>
+  <h3>Remaining: <span id="remaining">0</span></h3>
+
+  <div id="expensesList"></div>
+
+  <button onclick="logout()">Logout</button>
+
+</div>
+
+</div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { 
+  getAuth, 
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  updateDoc,
+  getDoc
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+/* 🔥 REPLACE WITH YOUR FIREBASE CONFIG */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_AUTH_DOMAIN",
+  projectId: "YOUR_PROJECT_ID",
+  appId: "YOUR_APP_ID"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+let currentUser = null;
+let expenses = [];
+
+/* AUTH FUNCTIONS */
+
+window.signUp = function() {
+  createUserWithEmailAndPassword(auth, email.value, password.value)
+    .catch(error => message.innerText = error.message);
+};
+
+window.login = function() {
+  signInWithEmailAndPassword(auth, email.value, password.value)
+    .catch(error => message.innerText = error.message);
+};
+
+window.googleLogin = function() {
+  const provider = new GoogleAuthProvider();
+  signInWithPopup(auth, provider)
+    .catch(error => message.innerText = error.message);
+};
+
+window.logout = function() {
+  signOut(auth);
+};
+
+/* AUTH STATE */
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    currentUser = user;
+    authSection.style.display = "none";
+    dashboard.style.display = "block";
+    welcome.innerText = "Welcome " + user.email;
+
+    loadUserData();
+  } else {
+    authSection.style.display = "block";
+    dashboard.style.display = "none";
+  }
+});
+
+/* LOAD USER DATA */
+async function loadUserData() {
+  const docRef = doc(db, "budgets", currentUser.uid);
+  const docSnap = await getDoc(docRef);
+
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+    income.value = data.income || 0;
+    expenses = data.expenses || [];
+    displayExpenses();
+  }
+}
+
+/* ADD EXPENSE */
+window.addExpense = async function() {
+  const incomeValue = parseFloat(income.value);
+  const amountValue = parseFloat(amount.value);
+
+  if (isNaN(incomeValue) || isNaN(amountValue)) return;
+
+  expenses.push({
+    category: category.value,
+    amount: amountValue
+  });
+
+  await setDoc(doc(db, "budgets", currentUser.uid), {
+    income: incomeValue,
+    expenses: expenses
+  });
+
+  amount.value = "";
+  displayExpenses();
+};
+
+/* DISPLAY */
+function displayExpenses() {
+  let total = 0;
+  expensesList.innerHTML = "";
+
+  expenses.forEach(exp => {
+    total += exp.amount;
+    expensesList.innerHTML += 
+      `<div class="expense-item">
+        <span>${exp.category}</span>
+        <span>${exp.amount}</span>
+      </div>`;
+  });
+
+  totalElement = document.getElementById("total");
+  remainingElement = document.getElementById("remaining");
+
+  totalElement.innerText = total;
+  remainingElement.innerText = income.value - total;
+}
+
+</script>
+
+</body>
+</html>
